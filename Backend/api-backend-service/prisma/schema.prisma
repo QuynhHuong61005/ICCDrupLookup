@@ -1,0 +1,306 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id             String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  phoneNumber    String         @unique @map("phone_number") @db.VarChar(20)
+  passwordHash   String         @map("password_hash")
+  fullName       String         @map("full_name") @db.VarChar(150)
+  cchnNumber     String?        @unique @map("cchn_number") @db.VarChar(50)
+  isVerified     Boolean?       @default(false) @map("is_verified")
+  roleId         Int?           @map("role_id")
+  isActive       Boolean?       @default(true) @map("is_active")
+  createdAt      DateTime?      @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt      DateTime?      @default(now()) @updatedAt @map("updated_at") @db.Timestamp(6)
+  prescriptions  Prescription[] @relation("DoctorPrescriptions")
+  refresh_tokens RefreshToken[]
+  role           Role?          @relation(fields: [roleId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@map("users")
+}
+
+model RefreshToken {
+  id        String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId    String    @map("user_id") @db.Uuid
+  token     String    @unique @db.VarChar(255)
+  expiresAt DateTime  @map("expires_at") @db.Timestamp(6)
+  createdAt DateTime? @default(now()) @map("created_at") @db.Timestamp(6)
+  users     User      @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@map("refresh_tokens")
+}
+
+model Role {
+  id          Int              @id @default(autoincrement())
+  name        String           @unique @db.VarChar(50)
+  description String?
+  createdAt   DateTime?        @default(now()) @map("created_at") @db.Timestamp(6)
+  permissions RolePermission[]
+  users       User[]
+
+  @@map("roles")
+}
+
+model Permission {
+  id          Int              @id @default(autoincrement())
+  name        String           @unique @db.VarChar(100)
+  description String?
+  createdAt   DateTime?        @default(now()) @map("created_at") @db.Timestamp(6)
+  roles       RolePermission[]
+
+  @@map("permissions")
+}
+
+model RolePermission {
+  roleId       Int        @map("role_id")
+  permissionId Int        @map("permission_id")
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  role         Role       @relation(fields: [roleId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@id([roleId, permissionId])
+  @@map("role_permissions")
+}
+
+model Patient {
+  id                String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  patient_code      String              @unique @db.VarChar(50)
+  fullName          String              @map("full_name") @db.VarChar(150)
+  date_of_birth     DateTime            @db.Date
+  gender            Gender
+  phone             String?             @db.VarChar(20)
+  address           String?
+  createdAt         DateTime?           @default(now()) @map("created_at") @db.Timestamp(6)
+  patient_allergies patient_allergies[]
+  prescriptions     Prescription[]
+
+  @@map("patients")
+}
+
+/// This model contains an expression index which requires additional setup for migrations. Visit https://pris.ly/d/expression-indexes for more info.
+model ICDCode {
+  code                 String                 @id @db.VarChar(20)
+  name_en              String
+  name_vi              String?
+  diseaseGroup         String                 @map("disease_group") @db.VarChar(150)
+  description          String?
+  is_active            Boolean?               @default(true)
+  createdAt            DateTime?              @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt            DateTime?              @default(now()) @updatedAt @map("updated_at") @db.Timestamp(6)
+  contraindications    contraindications[]
+  prescriptions        Prescription[]
+  treatment_guidelines treatment_guidelines[]
+
+  @@map("icd_codes")
+}
+
+model Drug {
+  id                  String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  visa_number         String               @unique @db.VarChar(50)
+  brandName           String               @map("brand_name") @db.VarChar(250)
+  manufacture_country String?              @db.VarChar(100)
+  specifications      String?
+  is_active           Boolean?             @default(true)
+  createdAt           DateTime?            @default(now()) @map("created_at") @db.Timestamp(6)
+  drug_ingredients    drug_ingredients[]
+  prescriptionDetails PrescriptionDetail[]
+
+  @@index([brandName(ops: raw("gin_trgm_ops"))], map: "idx_drugs_brand_name_trgm", type: Gin)
+  @@map("drugs")
+}
+
+model DrugInteraction {
+  interactionId String   @id @default(uuid()) @map("interaction_id") @db.Uuid
+  drug1Id       String   @map("drug1_id") @db.Uuid
+  drug2Id       String   @map("drug2_id") @db.Uuid
+  description   String
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  @@unique([drug1Id, drug2Id], name: "unique_drug_pair")
+  @@map("drug_interactions")
+}
+
+model ICDDrugMapping {
+  mappingId      String   @id @default(uuid()) @map("mapping_id") @db.Uuid
+  icdId          String   @map("icd_id") @db.Uuid
+  drugId         String   @map("drug_id") @db.Uuid
+  standardDosage String   @map("standard_dosage")
+  bhytStatus     Boolean  @default(true) @map("bhyt_status")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  @@unique([icdId, drugId])
+  @@map("icd_drug_mappings")
+}
+
+model Prescription {
+  id        String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  doctorId  String?              @map("doctor_id") @db.Uuid
+  patientId String?              @map("patient_id") @db.Uuid
+  icd_code  String?              @db.VarChar(20)
+  status    PrescriptionStatus?  @default(DRAFT)
+  note      String?
+  createdAt DateTime?            @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt DateTime?            @default(now()) @updatedAt @map("updated_at") @db.Timestamp(6)
+  details   PrescriptionDetail[]
+  doctor    User?                @relation("DoctorPrescriptions", fields: [doctorId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  icd_codes ICDCode?             @relation(fields: [icd_code], references: [code], onDelete: NoAction, onUpdate: NoAction)
+  patient   Patient?             @relation(fields: [patientId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@map("prescriptions")
+}
+
+model PrescriptionDetail {
+  id             Int           @id @default(autoincrement())
+  prescriptionId String?       @map("prescription_id") @db.Uuid
+  drugId         String?       @map("drug_id") @db.Uuid
+  dosage         String
+  quantity       Int
+  duration_days  Int
+  createdAt      DateTime?     @default(now()) @map("created_at") @db.Timestamp(6)
+  drug           Drug?         @relation(fields: [drugId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  prescription   Prescription? @relation(fields: [prescriptionId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@map("prescription_details")
+}
+
+model AuditLog {
+  id        BigInt    @id @default(autoincrement())
+  userId    String?   @map("user_id") @db.Uuid
+  tableName String    @map("table_name") @db.VarChar(100)
+  action    String    @db.VarChar(20)
+  old_value Json?
+  new_value Json?
+  ipAddress String?   @map("ip_address") @db.VarChar(45)
+  createdAt DateTime? @default(now()) @map("created_at") @db.Timestamp(6)
+
+  @@map("audit_logs")
+}
+
+model atc_codes {
+  code               String               @id @db.VarChar(20)
+  name_en            String
+  name_vi            String?
+  level              Int
+  active_ingredients active_ingredients[]
+
+  @@map("atc_codes")
+}
+
+model active_ingredients {
+  id                                                                                  Int                       @id @default(autoincrement())
+  name_en                                                                             String                    @unique @db.VarChar(250)
+  name_vi                                                                             String?                   @db.VarChar(250)
+  atc_code                                                                            String?                   @db.VarChar(20)
+  description                                                                         String?
+  atc_codes                                                                           atc_codes?                @relation(fields: [atc_code], references: [code], onUpdate: NoAction)
+  adverse_effects                                                                     adverse_effects[]
+  contraindications                                                                   contraindications[]
+  drug_ingredients                                                                    drug_ingredients[]
+  ingredient_interactions_ingredient_interactions_ingredient_a_idToactive_ingredients ingredient_interactions[] @relation("ingredient_interactions_ingredient_a_idToactive_ingredients")
+  ingredient_interactions_ingredient_interactions_ingredient_b_idToactive_ingredients ingredient_interactions[] @relation("ingredient_interactions_ingredient_b_idToactive_ingredients")
+  patient_allergies                                                                   patient_allergies[]
+  treatment_guidelines                                                                treatment_guidelines[]
+
+  @@index([name_en, name_vi], map: "idx_active_ingredients_name")
+}
+
+model adverse_effects {
+  id                 Int                 @id @default(autoincrement())
+  ingredient_id      Int?
+  effect_description String
+  frequency          String?             @db.VarChar(50)
+  created_at         DateTime?           @default(now()) @db.Timestamp(6)
+  active_ingredients active_ingredients? @relation(fields: [ingredient_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+}
+
+model contraindications {
+  id                 Int                 @id @default(autoincrement())
+  ingredient_id      Int?
+  icd_code           String?             @db.VarChar(20)
+  severity           Severity            @default(CONTRAINDICATED)
+  evidence_level     String?             @db.VarChar(50)
+  note               String?
+  icd_codes          ICDCode?            @relation(fields: [icd_code], references: [code], onDelete: Cascade, onUpdate: NoAction)
+  active_ingredients active_ingredients? @relation(fields: [ingredient_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+}
+
+model drug_ingredients {
+  drug_id            String             @db.Uuid
+  ingredient_id      Int
+  strength           String?            @db.VarChar(50)
+  drugs              Drug               @relation(fields: [drug_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  active_ingredients active_ingredients @relation(fields: [ingredient_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@id([drug_id, ingredient_id])
+}
+
+model ingredient_interactions {
+  id                                                                             Int                 @id @default(autoincrement())
+  ingredient_a_id                                                                Int?
+  ingredient_b_id                                                                Int?
+  severity                                                                       Severity            @default(MODERATE)
+  mechanism                                                                      String?
+  description                                                                    String?
+  active_ingredients_ingredient_interactions_ingredient_a_idToactive_ingredients active_ingredients? @relation("ingredient_interactions_ingredient_a_idToactive_ingredients", fields: [ingredient_a_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  active_ingredients_ingredient_interactions_ingredient_b_idToactive_ingredients active_ingredients? @relation("ingredient_interactions_ingredient_b_idToactive_ingredients", fields: [ingredient_b_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([ingredient_a_id, ingredient_b_id], map: "unique_ingredient_pair")
+  @@index([ingredient_a_id, ingredient_b_id], map: "idx_ingredient_interactions_pair")
+}
+
+model patient_allergies {
+  id                 Int                 @id @default(autoincrement())
+  patient_id         String?             @db.Uuid
+  ingredient_id      Int?
+  reaction           String?
+  recorded_at        DateTime?           @default(now()) @db.Timestamp(6)
+  active_ingredients active_ingredients? @relation(fields: [ingredient_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  patients           Patient?            @relation(fields: [patient_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([patient_id, ingredient_id], map: "unique_patient_allergy")
+}
+
+model treatment_guidelines {
+  id                    Int                 @id @default(autoincrement())
+  icd_code              String?             @db.VarChar(20)
+  ingredient_id         Int?
+  therapy_line          TherapyLine?        @default(FIRST_LINE)
+  dosage_recommendation String?
+  source_document       String?
+  created_at            DateTime?           @default(now()) @db.Timestamp(6)
+  icd_codes             ICDCode?            @relation(fields: [icd_code], references: [code], onDelete: Cascade, onUpdate: NoAction)
+  active_ingredients    active_ingredients? @relation(fields: [ingredient_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+}
+
+enum Gender {
+  MALE
+  FEMALE
+  OTHER
+}
+
+enum Severity {
+  MINOR
+  MODERATE
+  SEVERE
+  CONTRAINDICATED
+}
+
+enum PrescriptionStatus {
+  DRAFT
+  ACTIVE
+  COMPLETED
+  CANCELLED
+}
+
+enum TherapyLine {
+  FIRST_LINE
+  SECOND_LINE
+  ALTERNATIVE
+}
