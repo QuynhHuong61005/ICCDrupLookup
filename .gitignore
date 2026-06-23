@@ -1,0 +1,6 @@
+.vs/
+__pycache__/
+*.docx
+*.json
+*.md
+!Backend/api-backend-service/README.md
