@@ -9,6 +9,7 @@ class IcdSearchState {
   final bool isLoading;
   final String? error;
   final String query;
+  final String group;
   final bool hasMore;
   final int currentPage;
 
@@ -17,6 +18,7 @@ class IcdSearchState {
     this.isLoading = false,
     this.error,
     this.query = '',
+    this.group = '',
     this.hasMore = false,
     this.currentPage = 1,
   });
@@ -26,6 +28,7 @@ class IcdSearchState {
     bool? isLoading,
     String? error,
     String? query,
+    String? group,
     bool? hasMore,
     int? currentPage,
   }) {
@@ -34,6 +37,7 @@ class IcdSearchState {
       isLoading: isLoading ?? this.isLoading,
       error: error,
       query: query ?? this.query,
+      group: group ?? this.group,
       hasMore: hasMore ?? this.hasMore,
       currentPage: currentPage ?? this.currentPage,
     );
@@ -49,20 +53,22 @@ class IcdSearchNotifier extends StateNotifier<IcdSearchState> {
     search('');
   }
 
-  Future<void> search(String query, {bool reset = true}) async {
+  Future<void> search(String query, {String? group, bool reset = true}) async {
+    final searchGroup = group ?? state.group;
     if (reset) {
-      state = IcdSearchState(query: query, isLoading: true);
+      state = IcdSearchState(query: query, group: searchGroup, isLoading: true);
     } else {
       state = state.copyWith(isLoading: true);
     }
 
     try {
       final page = reset ? 1 : state.currentPage + 1;
-      final response = await _repo.search(query: query, page: page);
+      final response = await _repo.search(query: query, group: searchGroup, page: page);
       final newItems = reset ? response.items : [...state.items, ...response.items];
       state = IcdSearchState(
         items: newItems,
         query: query,
+        group: searchGroup,
         hasMore: response.hasMore,
         currentPage: page,
       );
@@ -109,4 +115,8 @@ final icdDetailProvider = StateNotifierProvider.family<IcdDetailNotifier,
   final notifier = IcdDetailNotifier(ref.watch(icdRepositoryProvider));
   notifier.load(icdId);
   return notifier;
+});
+
+final icdGroupsProvider = FutureProvider<List<String>>((ref) async {
+  return ref.watch(icdRepositoryProvider).getGroups();
 });
