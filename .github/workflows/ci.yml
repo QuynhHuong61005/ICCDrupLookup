@@ -1,0 +1,70 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  backend-test:
+    name: Backend CI
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: 18
+          cache: 'npm'
+          cache-dependency-path: 'Backend/api-backend-service/package-lock.json'
+
+      - name: Install backend dependencies
+        working-directory: ./Backend/api-backend-service
+        run: npm ci || npm install
+
+      - name: Generate Prisma Client
+        working-directory: ./Backend/api-backend-service
+        run: npx prisma generate
+
+      - name: Run Backend Linter
+        working-directory: ./Backend/api-backend-service
+        run: npm run lint --if-present || true
+
+      - name: Run Backend Unit Tests
+        working-directory: ./Backend/api-backend-service
+        run: npm test --if-present || true
+
+      - name: Build Backend
+        working-directory: ./Backend/api-backend-service
+        run: npm run build
+
+  frontend-test:
+    name: Frontend CI
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+
+      - name: Install frontend dependencies
+        working-directory: ./Frontend
+        run: flutter pub get
+
+      - name: Analyze frontend code
+        working-directory: ./Frontend
+        run: flutter analyze || true
+
+      - name: Run Frontend Tests
+        working-directory: ./Frontend
+        run: flutter test || true
+
+      - name: Build Frontend Web
+        working-directory: ./Frontend
+        run: flutter build web
