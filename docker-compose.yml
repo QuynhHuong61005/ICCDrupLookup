@@ -1,0 +1,56 @@
+version: '3.8'
+
+services:
+  db:
+    image: postgres:15-alpine
+    container_name: medprescribe_db
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: kookmin1108
+      POSTGRES_DB: medprescribe_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    container_name: medprescribe_redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redisdata:/data
+    restart: unless-stopped
+
+  backend:
+    build:
+      context: ./Backend/api-backend-service
+      dockerfile: Dockerfile
+    container_name: medprescribe_backend
+    environment:
+      - DATABASE_URL=postgresql://postgres:kookmin1108@db:5432/medprescribe_db
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - JWT_SECRET=medprescribe_super_secret_key_2026
+    ports:
+      - "3000:3000"
+    depends_on:
+      - db
+      - redis
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./Frontend
+      dockerfile: Dockerfile
+    container_name: medprescribe_frontend
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+volumes:
+  pgdata:
+  redisdata:
