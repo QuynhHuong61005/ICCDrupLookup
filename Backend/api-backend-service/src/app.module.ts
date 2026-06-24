@@ -8,6 +8,7 @@ import { InteractionsModule } from './interactions/interactions.module';
 import { PrescriptionsModule } from './prescriptions/prescriptions.module';
 import { DashboardModule } from './dashboard/dashboard.module';
 import { CrClModule } from './crcl/crcl.module';
+import { PediatricDoseModule } from './pediatric-dose/pediatric-dose.module';
 
 import { AppController } from './app.controller';
 
@@ -22,6 +23,7 @@ import { AppController } from './app.controller';
     PrescriptionsModule,
     DashboardModule,
     CrClModule,
+    PediatricDoseModule,
   ],
   controllers: [AppController],
   providers: [],
