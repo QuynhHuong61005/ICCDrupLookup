@@ -1,0 +1,235 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("postgresql+psycopg2://postgres:kookmin1108@127.0.0.1:5432/medprescribe_db")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum Gender {
+  MALE
+  FEMALE
+  OTHER
+}
+
+enum Severity {
+  MINOR
+  MODERATE
+  SEVERE
+  CONTRAINDICATED
+}
+
+enum PrescriptionStatus {
+  DRAFT
+  ACTIVE
+  COMPLETED
+  CANCELLED
+}
+
+model User {
+  userId       String   @id @default(uuid()) @map("user_id") @db.Uuid
+  fullName     String   @map("full_name") @db.VarChar(255)
+  email        String   @unique @db.VarChar(255)
+  passwordHash String   @map("password_hash") @db.VarChar(255)
+  roleId       String   @map("role_id") @db.Uuid
+  isActive     Boolean  @default(true) @map("is_active")
+  otpSecret    String?  @map("otp_secret") @db.VarChar(255)
+  otpEnabled   Boolean  @default(false) @map("otp_enabled")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  role          Role           @relation(fields: [roleId], references: [roleId])
+  prescriptions Prescription[] @relation("DoctorPrescriptions")
+  createdPrescr Prescription[] @relation("CreatedByPrescriptions")
+  auditLogs     AuditLog[]
+
+  @@map("users")
+}
+
+model Role {
+  roleId      String   @id @default(uuid()) @map("role_id") @db.Uuid
+  roleName    String   @unique @map("role_name") @db.VarChar(50)
+  description String?  @db.VarChar(255)
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  users       User[]
+  permissions RolePermission[]
+
+  @@map("roles")
+}
+
+model Permission {
+  permissionId   String   @id @default(uuid()) @map("permission_id") @db.Uuid
+  permissionName String   @unique @map("permission_name") @db.VarChar(100)
+  description    String?  @db.VarChar(255)
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  roles RolePermission[]
+
+  @@map("permissions")
+}
+
+model RolePermission {
+  roleId       String @map("role_id") @db.Uuid
+  permissionId String @map("permission_id") @db.Uuid
+
+  role       Role       @relation(fields: [roleId], references: [roleId], onDelete: Cascade)
+  permission Permission @relation(fields: [permissionId], references: [permissionId], onDelete: Cascade)
+
+  @@id([roleId, permissionId])
+  @@map("role_permissions")
+}
+
+model Patient {
+  patientId String   @id @default(uuid()) @map("patient_id") @db.Uuid
+  fullName  String   @map("full_name") @db.VarChar(255)
+  dob       DateTime @db.Date
+  gender    Gender
+  phone     String   @unique @db.VarChar(20)
+  address   String   @db.Text
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  prescriptions Prescription[]
+
+  @@map("patients")
+}
+
+model ICDCode {
+  icdId        String   @id @default(uuid()) @map("icd_id") @db.Uuid
+  icdCode      String   @unique @map("icd_code") @db.VarChar(20)
+  diseaseName  String   @map("disease_name") @db.VarChar(255)
+  diseaseGroup String   @map("disease_group") @db.VarChar(255)
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  mappings ICDDrugMapping[]
+
+  @@map("icd_codes")
+  @@index([diseaseName])
+}
+
+model Drug {
+  drugId           String   @id @default(uuid()) @map("drug_id") @db.Uuid
+  brandName        String   @map("brand_name") @db.VarChar(255)
+  activeIngredient String   @map("active_ingredient") @db.VarChar(255)
+  concentration    String   @db.VarChar(100)
+  dosageForm       String   @map("dosage_form") @db.VarChar(100)
+  manufacturer     String   @db.VarChar(255)
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  prescriptionDetails PrescriptionDetail[]
+  icdMappings         ICDDrugMapping[]
+  interactions1       DrugInteraction[]    @relation("Drug1Interactions")
+  interactions2       DrugInteraction[]    @relation("Drug2Interactions")
+
+  @@map("drugs")
+  @@index([brandName])
+  @@index([activeIngredient])
+}
+
+model DrugInteraction {
+  interactionId String   @id @default(uuid()) @map("interaction_id") @db.Uuid
+  drug1Id       String   @map("drug1_id") @db.Uuid
+  drug2Id       String   @map("drug2_id") @db.Uuid
+  severity      Severity
+  description   String   @db.Text
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  drug1 Drug @relation("Drug1Interactions", fields: [drug1Id], references: [drugId], onDelete: Cascade)
+  drug2 Drug @relation("Drug2Interactions", fields: [drug2Id], references: [drugId], onDelete: Cascade)
+
+  @@unique([drug1Id, drug2Id], name: "unique_drug_pair")
+  @@map("drug_interactions")
+}
+
+model ICDDrugMapping {
+  mappingId      String   @id @default(uuid()) @map("mapping_id") @db.Uuid
+  icdId          String   @map("icd_id") @db.Uuid
+  drugId         String   @map("drug_id") @db.Uuid
+  standardDosage String   @map("standard_dosage") @db.Text
+  bhytStatus     Boolean  @default(true) @map("bhyt_status")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  icd  ICDCode @relation(fields: [icdId], references: [icdId], onDelete: Cascade)
+  drug Drug    @relation(fields: [drugId], references: [drugId], onDelete: Cascade)
+
+  @@unique([icdId, drugId])
+  @@map("icd_drug_mappings")
+}
+
+model Prescription {
+  prescriptionId String             @id @default(uuid()) @map("prescription_id") @db.Uuid
+  patientId      String             @map("patient_id") @db.Uuid
+  doctorId       String             @map("doctor_id") @db.Uuid
+  diagnosisNote  String             @map("diagnosis_note") @db.Text
+  status         PrescriptionStatus @default(DRAFT)
+  createdBy      String             @map("created_by") @db.Uuid
+  createdAt      DateTime           @default(now()) @map("created_at")
+  updatedAt      DateTime           @updatedAt @map("updated_at")
+
+  patient Patient              @relation(fields: [patientId], references: [patientId])
+  doctor  User                 @relation("DoctorPrescriptions", fields: [doctorId], references: [userId])
+  creator User                 @relation("CreatedByPrescriptions", fields: [createdBy], references: [userId])
+  details PrescriptionDetail[]
+
+  @@map("prescriptions")
+}
+
+model PrescriptionDetail {
+  detailId       String   @id @default(uuid()) @map("detail_id") @db.Uuid
+  prescriptionId String   @map("prescription_id") @db.Uuid
+  drugId         String   @map("drug_id") @db.Uuid
+  dosage         String   @db.VarChar(255)
+  quantity       Int
+  note           String?  @db.Text
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  prescription Prescription @relation(fields: [prescriptionId], references: [prescriptionId], onDelete: Cascade)
+  drug         Drug         @relation(fields: [drugId], references: [drugId])
+
+  @@map("prescription_details")
+}
+
+model AuditLog {
+  auditId   String   @id @default(uuid()) @map("audit_id") @db.Uuid
+  userId    String?  @map("user_id") @db.Uuid
+  action    String   @db.VarChar(100)
+  tableName String   @map("table_name") @db.VarChar(100)
+  recordId  String?  @map("record_id") @db.VarChar(100)
+  oldValues Json?    @map("old_values")
+  newValues Json?    @map("new_values")
+  ipAddress String?  @map("ip_address") @db.VarChar(45)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User? @relation(fields: [userId], references: [userId], onDelete: SetNull)
+
+  @@map("audit_logs")
+}
+
+model atc_codes {
+  atc_id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  atc_code         String   @unique @db.VarChar
+  drug_name        String?  @db.VarChar
+  level_1_code     String?  @db.VarChar
+  level_2_code     String?  @db.VarChar
+  level_2_name     String?  @db.VarChar
+  level_3_code     String?  @db.VarChar
+  level_3_name     String?  @db.VarChar
+  level_4_code     String?  @db.VarChar
+  level_4_name     String?  @db.VarChar
+  level_5_name     String?  @db.VarChar
+
+  created_at       DateTime @default(now()) @db.Timestamp(6)
+  updated_at       DateTime @default(now()) @db.Timestamp(6)
+
+  @@map("atc_codes")
+}
+
