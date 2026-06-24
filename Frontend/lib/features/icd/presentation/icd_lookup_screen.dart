@@ -31,6 +31,10 @@ class _IcdLookupScreenState extends ConsumerState<IcdLookupScreen> {
     });
   }
 
+  void _onGroupChanged(String? group) {
+    ref.read(icdSearchProvider.notifier).search(_searchController.text, group: group ?? '');
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -52,6 +56,26 @@ class _IcdLookupScreenState extends ConsumerState<IcdLookupScreen> {
                   hint: 'Type "Hypertension" or "A09"...',
                   prefixIcon: Icons.search,
                   onChanged: _onSearchChanged,
+                ),
+                AppSpacing.gapH16,
+                ref.watch(icdGroupsProvider).when(
+                  data: (groups) {
+                    return DropdownButtonFormField<String>(
+                      decoration: const InputDecoration(
+                        labelText: 'Filter by Disease Group',
+                        border: OutlineInputBorder(),
+                        contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                      ),
+                      value: state.group.isEmpty ? null : state.group,
+                      items: [
+                        const DropdownMenuItem(value: '', child: Text('All Groups')),
+                        ...groups.map((g) => DropdownMenuItem(value: g, child: Text(g))),
+                      ],
+                      onChanged: _onGroupChanged,
+                    );
+                  },
+                  loading: () => const LinearProgressIndicator(),
+                  error: (e, st) => const Text('Failed to load groups'),
                 ),
               ],
             ),
