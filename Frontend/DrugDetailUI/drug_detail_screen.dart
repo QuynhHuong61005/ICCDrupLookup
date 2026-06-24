@@ -38,6 +38,8 @@ class DrugDetailScreen extends StatelessWidget {
       );
     }
 
+    final mappings = MockDataService.mappings.where((m) => m.drugId == drug.drugId).toList();
+
     return Scaffold(
       appBar: AppBar(
         title: Text(drug.brandName),
@@ -124,6 +126,8 @@ class DrugDetailScreen extends StatelessWidget {
               icon: Icons.warning_amber_outlined,
               iconColor: AppColors.error,
             ),
+            AppSpacing.gapH12,
+            _buildBHYTStatusTile(theme, mappings),
           ],
         ),
       ),
@@ -160,6 +164,79 @@ class DrugDetailScreen extends StatelessWidget {
                 ),
               ),
             ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildBHYTStatusTile(ThemeData theme, List<ICDDrugMappingMock> mappings) {
+    return AppCard(
+      padding: EdgeInsets.zero,
+      child: Theme(
+        data: theme.copyWith(dividerColor: Colors.transparent),
+        child: ExpansionTile(
+          leading: const Icon(Icons.health_and_safety, color: AppColors.primary),
+          title: Text(
+            'BHYT Coverage & Supported Indications',
+            style: theme.textTheme.titleMedium
+                ?.copyWith(fontSize: 16, fontWeight: FontWeight.bold),
+          ),
+          children: [
+            if (mappings.isEmpty)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(AppSpacing.xl + 8, 0, AppSpacing.lg, AppSpacing.lg),
+                child: const Text('No specific BHYT mappings found for this drug.'),
+              )
+            else
+              Padding(
+                padding: const EdgeInsets.fromLTRB(AppSpacing.xl + 8, 0, AppSpacing.lg, AppSpacing.lg),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: mappings.map((mapping) {
+                    final icd = MockDataService.icdCodes.firstWhere(
+                        (i) => i.icdId == mapping.icdId,
+                        orElse: () => ICDCodeMock(
+                              icdId: '',
+                              icdCode: 'Unknown',
+                              diseaseName: 'Unknown',
+                              diseaseGroup: '',
+                              symptoms: [],
+                            ));
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            '${icd.icdCode} - ${icd.diseaseName}',
+                            style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.bold),
+                          ),
+                          Row(
+                            children: [
+                              Text(
+                                mapping.bhytStatus ? 'BHYT Covered' : 'Non-BHYT',
+                                style: theme.textTheme.bodySmall?.copyWith(
+                                  color: mapping.bhytStatus ? AppColors.success : AppColors.warning,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              const Text(' • '),
+                              Expanded(
+                                child: Text(
+                                  mapping.standardDosage,
+                                  style: theme.textTheme.bodySmall,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const Divider(),
+                        ],
+                      ),
+                    );
+                  }).toList(),
+                ),
+              ),
           ],
         ),
       ),
